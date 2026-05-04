@@ -1,0 +1,63 @@
+# Parameters for the Gaze-Guided / Gesture-Controlled retrieval system.
+# Loaded by the bringup.launch.py file.
+
+gaze_node:
+  ros__parameters:
+    camera_topic: /user_camera/image_raw          # RGB camera (laptop webcam)
+    publish_rate_hz: 15.0
+    smoothing_alpha: 0.4                          # exponential smoothing for yaw/pitch
+    yaw_left_deg: -12.0                           # < this -> "look left"
+    yaw_right_deg: 12.0                           # > this -> "look right"
+    use_face_landmarks: true                      # MediaPipe FaceMesh; falls back to OpenCV haar
+
+gesture_node:
+  ros__parameters:
+    camera_topic: /user_camera/image_raw
+    publish_rate_hz: 15.0
+    confirm_hold_s: 0.6                           # seconds a gesture must be stable to confirm
+    max_num_hands: 1
+
+yolo_node:
+  ros__parameters:
+    camera_topic: /robot_camera/image_raw         # camera mounted on the robot
+    weights: yolov8n.pt
+    confidence: 0.4
+    classes: ['bottle', 'cup', 'teddy bear', 'cell phone', 'book', 'apple', 'banana', 'orange']
+    publish_rate_hz: 6.0
+
+fusion_node:
+  ros__parameters:
+    gaze_cone_deg: 25.0                           # half-angle around gaze direction
+    confirm_gesture: 'grab'                       # gesture that confirms a target
+    target_lock_timeout_s: 2.0
+
+mode_manager:
+  ros__parameters:
+    start_mode: 'NAVIGATION'                      # NAVIGATION | RETRIEVAL
+    mode_switch_gesture: 'thumbs_up'
+
+teleop_bridge:
+  ros__parameters:
+    cmd_vel_topic: /cmd_vel
+    linear_speed: 0.18                            # m/s
+    angular_speed: 0.6                            # rad/s
+    publish_rate_hz: 20.0
+
+arm_controller:
+  ros__parameters:
+    joint_trajectory_action: /arm_controller/follow_joint_trajectory
+    gripper_action: /gripper_controller/gripper_cmd
+    move_time_s: 2.5
+    # Predefined joint poses for OpenMANIPULATOR-X (joint1..joint4) in radians
+    pose_home:    [0.0,    -1.0,  0.7,   0.7]
+    pose_extend:  [0.0,    -0.3,  0.2,   0.6]
+    pose_carry:   [0.0,    -1.2,  0.2,   1.0]
+    pose_wave:    [0.0,    -0.2, -1.0,   1.2]
+    gripper_open:  0.019
+    gripper_close: -0.01
+
+nav_client:
+  ros__parameters:
+    nav_action: /navigate_to_pose
+    map_frame: map
+    approach_offset: 0.45                         # stop this far in front of the object
