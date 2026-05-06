@@ -173,21 +173,29 @@ The default `bringup.launch.py` runs `perception_node`, which publishes
 your laptop's webcam onto `/user_camera/image_raw` (so the gaze and
 gesture nodes always have a feed of *your* face).
 
-For the **robot's** camera (used by YOLO), the easiest setup is to remap
-the default Gazebo camera onto `/robot_camera/image_raw`:
+For the **robot's** camera (used by YOLO), the easiest setup is to point
+`yolo_node` at the Gazebo camera topic via the launch argument
+`robot_camera_topic` (defined in `bringup.launch.py`):
 
-`[Docker #4 — alternative launch line]`
+`[Docker #4 — recommended]`
 ```bash
 ros2 launch gaze_gesture_retrieval bringup.launch.py \
-    --ros-args --remap /camera/image_raw:=/robot_camera/image_raw
+    robot_camera_topic:=/camera/image_raw
 ```
 
-Or open a 5th shell and run a thin relay:
+> NOTE: `ros2 launch` does **not** accept `--ros-args --remap ...` on the
+> command line — that syntax is only valid for `ros2 run`. Use the
+> launch argument above instead.
+
+Alternatively, open a 5th shell and run a thin relay:
 
 `[Docker #5]`
 ```bash
 ros2 run topic_tools relay /camera/image_raw /robot_camera/image_raw
 ```
+
+Or set `yolo_node.camera_topic` directly in `config/params.yaml` to
+`/camera/image_raw` and rebuild.
 
 ### 5.6 Drive the robot — Navigation Control Mode
 
@@ -289,11 +297,11 @@ ros2 launch turtlebot3_manipulation_moveit_config servo.launch.py
 ```bash
 source ~/ros2_ws/install/setup.bash
 ros2 launch gaze_gesture_retrieval bringup.launch.py \
-    --ros-args --remap /camera/image_raw:=/robot_camera/image_raw
+    robot_camera_topic:=/camera/image_raw
 ```
 
 The robot's onboard RGB camera publishes on `/camera/image_raw`, so the
-remap above feeds YOLO. The **laptop's** webcam continues to drive the
+launch argument above feeds YOLO. The **laptop's** webcam continues to drive the
 gaze and gesture pipelines through `perception_node` →
 `/user_camera/image_raw`.
 
@@ -359,6 +367,7 @@ HOST_UID=$(id -u) USER_HOME=$HOME docker compose up -d --build
 | `AttributeError: _ARRAY_API not found` while importing matplotlib / mediapipe / cv2 | `pip` pulled NumPy 2.x but the system matplotlib/cv2 are compiled against NumPy 1.x. Fix: `pip3 install "numpy<2"` and re-run. (`scripts/install_deps.sh` already pins this.) |
 | `Authorization required, but no authorization protocol specified` / `qt.qpa.xcb: could not connect to display :1` | X11 forwarding handshake failed. On the **host** terminal (outside Docker) run `xhost +local:root`. Inside the container check `echo $DISPLAY`; if empty, `export DISPLAY=:0`. |
 | `colcon build` prints `ignoring unknown package 'gaze_gesture_retrieval'` | Your symlink in `~/ros2_ws/src/` points at the wrong directory. The package's `package.xml` must live directly inside the symlink target. Re-create with `ln -sfn ~/my_code/<correct-path>/gaze_gesture_retrieval ~/ros2_ws/src/gaze_gesture_retrieval`. |
+| `ros2: error: unrecognized arguments: --ros-args --remap ...` when running `ros2 launch` | `--ros-args --remap` is only valid for `ros2 run`, not `ros2 launch`. Use the `robot_camera_topic:=/camera/image_raw` launch argument, or run a `topic_tools relay`. |
 | MediaPipe import error | `pip3 install mediapipe==0.10.14`. Newer 0.10.x versions also work; pin the version that matches your CUDA/CPU. |
 | YOLO logs "Failed to load yolov8n.pt" | First launch downloads the weights; ensure the container has internet. |
 | Robot does not move in Gazebo | Verify `/cmd_vel` is being published (`ros2 topic hz /cmd_vel`) and that `/cmd_vel` has a subscriber (Gazebo's `diff_drive` plugin). |
