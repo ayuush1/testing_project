@@ -26,6 +26,7 @@ apt-get install -y --no-install-recommends \
     ros-humble-vision-msgs \
     ros-humble-image-transport \
     ros-humble-rqt-image-view \
+    ros-humble-topic-tools \
     v4l-utils
 
 echo "[gaze_gesture_retrieval] Dependencies installed."
