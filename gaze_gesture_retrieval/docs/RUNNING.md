@@ -356,6 +356,9 @@ HOST_UID=$(id -u) USER_HOME=$HOME docker compose up -d --build
 | Symptom | Likely cause / fix |
 | --- | --- |
 | `gaze_node` says *"none"* forever | Camera permissions: re-run `xhost +local:root`; check `/dev/video0` is exposed in `docker-compose.yml`. |
+| `AttributeError: _ARRAY_API not found` while importing matplotlib / mediapipe / cv2 | `pip` pulled NumPy 2.x but the system matplotlib/cv2 are compiled against NumPy 1.x. Fix: `pip3 install "numpy<2"` and re-run. (`scripts/install_deps.sh` already pins this.) |
+| `Authorization required, but no authorization protocol specified` / `qt.qpa.xcb: could not connect to display :1` | X11 forwarding handshake failed. On the **host** terminal (outside Docker) run `xhost +local:root`. Inside the container check `echo $DISPLAY`; if empty, `export DISPLAY=:0`. |
+| `colcon build` prints `ignoring unknown package 'gaze_gesture_retrieval'` | Your symlink in `~/ros2_ws/src/` points at the wrong directory. The package's `package.xml` must live directly inside the symlink target. Re-create with `ln -sfn ~/my_code/<correct-path>/gaze_gesture_retrieval ~/ros2_ws/src/gaze_gesture_retrieval`. |
 | MediaPipe import error | `pip3 install mediapipe==0.10.14`. Newer 0.10.x versions also work; pin the version that matches your CUDA/CPU. |
 | YOLO logs "Failed to load yolov8n.pt" | First launch downloads the weights; ensure the container has internet. |
 | Robot does not move in Gazebo | Verify `/cmd_vel` is being published (`ros2 topic hz /cmd_vel`) and that `/cmd_vel` has a subscriber (Gazebo's `diff_drive` plugin). |
