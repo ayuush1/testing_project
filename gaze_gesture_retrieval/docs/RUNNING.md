@@ -274,13 +274,71 @@ ros2 node info /retrieval_orchestrator
 
 ## 6. Run on the **physical TurtleBot3**
 
-The procedure mirrors the simulation case; only the source of the topics
-changes.
+The procedure mirrors the simulation case, but `hardware.launch.py` does
+**not** start a camera node — you have to publish frames yourself, the
+same way Assignment 4 used a custom `chess_vision_publisher.py`. We
+ship a tiny self-contained script for this in
+[`jetson/jetson_camera_publisher.py`](../jetson/jetson_camera_publisher.py).
+
+### 6.1 One-time setup on the Jetson
 
 `[Jetson]`
 ```bash
+sudo apt update
+sudo apt install -y python3-opencv ros-humble-cv-bridge
+sudo usermod -aG video $USER     # log out + back in once
+```
+
+Copy the publisher script over from the Remote PC (or git clone the
+repo on the Jetson if it has internet):
+
+`[Host or Docker]`
+```bash
+scp ~/my_code/testing_project/gaze_gesture_retrieval/jetson/jetson_camera_publisher.py \
+    nvidia@<jetson-ip>:~/jetson_camera_publisher.py
+```
+
+### 6.2 Bring up the robot
+
+`[Jetson — terminal A]`
+```bash
 ros2 launch turtlebot3_manipulation_bringup hardware.launch.py
 ```
+
+`[Jetson — terminal B]`
+```bash
+source /opt/ros/humble/setup.bash
+python3 ~/jetson_camera_publisher.py
+# adjust on the fly with --ros-args -p video_device:=/dev/video0 -p fps:=15.0
+```
+
+You should see something like:
+
+```
+[INFO] JetsonCameraPublisher: device=0 requested=640x480@15.0 ->
+       actual=640x480@15.0 topic=/robot_camera/image_raw frame_id=robot_camera
+```
+
+### 6.3 Verify the camera link from the Remote PC
+
+`[Docker]`
+```bash
+ros2 topic list | grep image
+# /robot_camera/image_raw          <- from the Jetson
+# /user_camera/image_raw           <- from perception_node (your webcam)
+
+ros2 topic hz /robot_camera/image_raw
+# average rate: ~15.0 Hz
+
+ros2 run rqt_image_view rqt_image_view /robot_camera/image_raw   # optional eyeball check
+```
+
+If `Publisher count: 0` from the laptop while the Jetson clearly logs
+that it's publishing, your `ROS_DOMAIN_ID` doesn't match across
+machines — fix it before continuing (`printenv ROS_DOMAIN_ID` on both
+sides must be identical).
+
+### 6.4 Bring up Nav2, MoveIt, and our stack on the Remote PC
 
 `[Docker #1]`
 ```bash
@@ -296,14 +354,13 @@ ros2 launch turtlebot3_manipulation_moveit_config servo.launch.py
 `[Docker #3]`
 ```bash
 source ~/ros2_ws/install/setup.bash
-ros2 launch gaze_gesture_retrieval bringup.launch.py \
-    robot_camera_topic:=/camera/image_raw
+ros2 launch gaze_gesture_retrieval bringup.launch.py
 ```
 
-The robot's onboard RGB camera publishes on `/camera/image_raw`, so the
-launch argument above feeds YOLO. The **laptop's** webcam continues to drive the
-gaze and gesture pipelines through `perception_node` →
-`/user_camera/image_raw`.
+Because the Jetson publisher already uses `/robot_camera/image_raw`
+(the default `yolo_node.camera_topic`), **no launch override is needed**.
+The laptop's webcam continues to feed `gaze_node` and `gesture_node`
+through `perception_node` → `/user_camera/image_raw`.
 
 > **Safety**: the `teleop_bridge` automatically zeroes `/cmd_vel` when
 > the gesture stream stops for more than 1 s. If you walk away from the

@@ -35,6 +35,9 @@ gaze_gesture_retrieval/
 │   ├── perception.launch.py        <- camera + gaze + gesture + YOLO only
 │   ├── teleop_only.launch.py       <- hybrid gaze/gesture driving
 │   └── bringup.launch.py           <- full stack (perception + fusion + control)
+├── jetson/
+│   ├── jetson_camera_publisher.py  <- runs on the TurtleBot3 Jetson NX
+│   └── README.md                   <- Jetson-side install + run guide
 ├── scripts/
 │   ├── install_deps.sh             <- pip + apt deps inside the container
 │   ├── test_perception_offline.py  <- standalone webcam sanity check
