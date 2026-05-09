@@ -29,6 +29,7 @@ setup(
             'gaze_node       = gaze_gesture_retrieval.gaze_node:main',
             'gesture_node    = gaze_gesture_retrieval.gesture_node:main',
             'yolo_node       = gaze_gesture_retrieval.yolo_node:main',
+            'yolo_json_bridge = gaze_gesture_retrieval.yolo_json_bridge:main',
             # Fusion / decision
             'fusion_node     = gaze_gesture_retrieval.fusion_node:main',
             'mode_manager    = gaze_gesture_retrieval.mode_manager:main',

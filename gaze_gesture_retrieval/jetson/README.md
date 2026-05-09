@@ -6,9 +6,14 @@ for Assignment 4 (`chess_vision_publisher.py`).
 
 ## What's here
 
-| File | Purpose |
-| --- | --- |
-| `jetson_camera_publisher.py` | Open the USB camera with OpenCV and publish frames as `sensor_msgs/Image` on `/robot_camera/image_raw`. |
+| File | Purpose | Architecture |
+| --- | --- | --- |
+| `jetson_camera_publisher.py` | Open the camera with OpenCV (V4L2) and publish raw frames as `sensor_msgs/Image` on `/robot_camera/image_raw`. YOLO inference happens on the Remote PC. | "image streaming" |
+| `jetson_yolo_json_publisher.py` | Run YOLO inference *on the Jetson* (CUDA / TensorRT) and publish detections as a tiny JSON `std_msgs/String` on `/yolo/detections_json`. The Remote PC's `yolo_json_bridge` translates that to `vision_msgs/Detection2DArray` for `fusion_node`. | "edge inference" — same pattern as Assignment 4 |
+
+Pick one — never run both at the same time. **For the physical robot
+on `small_blue_wifi` the edge-inference script is strongly recommended**
+because it sends only a few KB/s instead of ~13 MB/s of raw images.
 
 ## One-time setup on the Jetson
 
@@ -41,7 +46,7 @@ git clone https://github.com/<your-fork>/testing_project.git
 cp testing_project/gaze_gesture_retrieval/jetson/jetson_camera_publisher.py ~/
 ```
 
-## Running it
+## Running it — Architecture A (image streaming)
 
 ```bash
 source /opt/ros/humble/setup.bash
@@ -52,6 +57,56 @@ You should see a log line like:
 
 ```
 [INFO] JetsonCameraPublisher: device=0 requested=640x480@15.0 -> actual=640x480@15.0 topic=/robot_camera/image_raw frame_id=robot_camera cv_bridge=yes
+```
+
+On the Remote PC:
+
+```bash
+ros2 launch gaze_gesture_retrieval bringup.launch.py    # default: yolo_source:=local
+```
+
+## Running it — Architecture B (edge inference, recommended)
+
+This is the Assignment 4 pattern. Install ultralytics on the Jetson once:
+
+```bash
+pip3 install ultralytics
+```
+
+Then run the JSON publisher:
+
+```bash
+source /opt/ros/humble/setup.bash
+python3 ~/jetson_yolo_json_publisher.py
+# CUDA model:        --ros-args -p model:=yolo11n.pt
+# TensorRT engine:   --ros-args -p model:=yolo11n.engine
+# USB camera (instead of CSI / Pi camera):
+#                    --ros-args -p camera_source:=v4l2 -p video_device:=/dev/video0
+```
+
+Expected log line:
+
+```
+[INFO] YoloJsonPublisher ready: source=CSI (gstreamer/nvarguscamerasrc),
+       topic=/yolo/detections_json, conf=0.4, rate=10.0 Hz
+```
+
+On the Remote PC, switch the launch argument to `remote`:
+
+```bash
+ros2 launch gaze_gesture_retrieval bringup.launch.py yolo_source:=remote
+```
+
+The `yolo_json_bridge` node will subscribe to `/yolo/detections_json`,
+parse each JSON message, and republish a `vision_msgs/Detection2DArray`
+on `/perception/detections` — exactly the topic `fusion_node` already
+consumes, so nothing else changes.
+
+Verify:
+
+```bash
+ros2 topic hz /yolo/detections_json
+ros2 topic echo /perception/detections --once
 ```
 
 ## Tunable parameters

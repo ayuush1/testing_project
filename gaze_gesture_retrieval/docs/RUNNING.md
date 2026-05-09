@@ -274,11 +274,18 @@ ros2 node info /retrieval_orchestrator
 
 ## 6. Run on the **physical TurtleBot3**
 
-The procedure mirrors the simulation case, but `hardware.launch.py` does
-**not** start a camera node — you have to publish frames yourself, the
-same way Assignment 4 used a custom `chess_vision_publisher.py`. We
-ship a tiny self-contained script for this in
-[`jetson/jetson_camera_publisher.py`](../jetson/jetson_camera_publisher.py).
+`hardware.launch.py` does **not** start a camera node — you have to
+publish frames yourself, the same way Assignment 4 used a custom
+`chess_vision_publisher.py`. There are **two valid architectures**.
+Pick one.
+
+| Architecture | Jetson runs | Remote PC runs | When to use |
+| --- | --- | --- | --- |
+| **A. Image streaming** | `jetson_camera_publisher.py` (raw images) | `yolo_node` (YOLO inference) | Quick to set up, large bandwidth (~13 MB/s) |
+| **B. Edge inference** *(recommended on `small_blue_wifi`)* | `jetson_yolo_json_publisher.py` (YOLO + JSON) | `yolo_json_bridge` (JSON → `Detection2DArray`) | Same pattern as Assignment 4. Tiny bandwidth, reuses your existing engine file. |
+
+Both feed `/perception/detections`, so `fusion_node` and the rest of
+the stack work identically either way.
 
 ### 6.1 One-time setup on the Jetson
 
@@ -300,6 +307,8 @@ scp ~/my_code/testing_project/gaze_gesture_retrieval/jetson/jetson_camera_publis
 
 ### 6.2 Bring up the robot
 
+#### Architecture A — image streaming
+
 `[Jetson — terminal A]`
 ```bash
 ros2 launch turtlebot3_manipulation_bringup hardware.launch.py
@@ -309,17 +318,41 @@ ros2 launch turtlebot3_manipulation_bringup hardware.launch.py
 ```bash
 source /opt/ros/humble/setup.bash
 python3 ~/jetson_camera_publisher.py
-# adjust on the fly with --ros-args -p video_device:=/dev/video0 -p fps:=15.0
 ```
 
-You should see something like:
+#### Architecture B — edge inference (Assignment 4 style, recommended)
+
+One-time, install ultralytics on the Jetson:
+
+```bash
+pip3 install ultralytics
+```
+
+`[Jetson — terminal A]`
+```bash
+ros2 launch turtlebot3_manipulation_bringup hardware.launch.py
+```
+
+`[Jetson — terminal B]`
+```bash
+source /opt/ros/humble/setup.bash
+python3 ~/jetson_yolo_json_publisher.py
+# TensorRT engine if you have one:
+#   --ros-args -p model:=yolo11n.engine
+# USB camera (otherwise it uses the Pi CSI camera):
+#   --ros-args -p camera_source:=v4l2 -p video_device:=/dev/video0
+```
+
+Expected log line:
 
 ```
-[INFO] JetsonCameraPublisher: device=0 requested=640x480@15.0 ->
-       actual=640x480@15.0 topic=/robot_camera/image_raw frame_id=robot_camera
+[INFO] YoloJsonPublisher ready: source=CSI (gstreamer/nvarguscamerasrc),
+       topic=/yolo/detections_json, conf=0.4, rate=10.0 Hz
 ```
 
-### 6.3 Verify the camera link from the Remote PC
+### 6.3 Verify the link from the Remote PC
+
+For **Architecture A**:
 
 `[Docker]`
 ```bash
@@ -331,6 +364,21 @@ ros2 topic hz /robot_camera/image_raw
 # average rate: ~15.0 Hz
 
 ros2 run rqt_image_view rqt_image_view /robot_camera/image_raw   # optional eyeball check
+```
+
+For **Architecture B**:
+
+`[Docker]`
+```bash
+ros2 topic list | grep yolo
+# /yolo/detections_json
+
+ros2 topic hz /yolo/detections_json
+# average rate: ~10.0 Hz
+
+ros2 topic echo /yolo/detections_json --once
+# {"timestamp": ..., "frame_id": "camera_link", "image_width": 1280,
+#  "image_height": 720, "detections": [{"class_name": "bottle", ...}]}
 ```
 
 If `Publisher count: 0` from the laptop while the Jetson clearly logs
@@ -352,15 +400,26 @@ ros2 launch turtlebot3_manipulation_moveit_config servo.launch.py
 ```
 
 `[Docker #3]`
+
+For Architecture A:
 ```bash
 source ~/ros2_ws/install/setup.bash
 ros2 launch gaze_gesture_retrieval bringup.launch.py
+# (yolo_source defaults to 'local'; the Jetson already publishes on
+#  /robot_camera/image_raw, the default yolo_node.camera_topic)
 ```
 
-Because the Jetson publisher already uses `/robot_camera/image_raw`
-(the default `yolo_node.camera_topic`), **no launch override is needed**.
-The laptop's webcam continues to feed `gaze_node` and `gesture_node`
-through `perception_node` → `/user_camera/image_raw`.
+For Architecture B:
+```bash
+source ~/ros2_ws/install/setup.bash
+ros2 launch gaze_gesture_retrieval bringup.launch.py yolo_source:=remote
+# This swaps yolo_node out for yolo_json_bridge, which subscribes to
+# /yolo/detections_json from the Jetson and republishes
+# vision_msgs/Detection2DArray on /perception/detections.
+```
+
+Either way, the laptop's webcam continues to feed `gaze_node` and
+`gesture_node` through `perception_node` → `/user_camera/image_raw`.
 
 > **Safety**: the `teleop_bridge` automatically zeroes `/cmd_vel` when
 > the gesture stream stops for more than 1 s. If you walk away from the

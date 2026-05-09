@@ -25,6 +25,16 @@ yolo_node:
     classes: ['bottle', 'cup', 'teddy bear', 'cell phone', 'book', 'apple', 'banana', 'orange']
     publish_rate_hz: 6.0
 
+# Used when yolo_source:=remote. The bridge subscribes to
+# /yolo/detections_json (Assignment 4 style), filters by class + confidence,
+# and republishes vision_msgs/Detection2DArray on /perception/detections.
+yolo_json_bridge:
+  ros__parameters:
+    input_topic: /yolo/detections_json
+    output_topic: /perception/detections
+    confidence: 0.0
+    classes: ['bottle', 'cup', 'teddy bear', 'cell phone', 'book', 'apple', 'banana', 'orange']
+
 fusion_node:
   ros__parameters:
     gaze_cone_deg: 25.0                           # half-angle around gaze direction
