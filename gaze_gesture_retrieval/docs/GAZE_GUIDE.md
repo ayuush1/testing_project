@@ -53,7 +53,7 @@ target_pixel_x = image_centre + clip(yaw / gaze_cone_deg, ±1) * (image_width / 
 
 Then it finds the YOLO bounding box whose centre is closest to that
 column and publishes its label on `/fusion/candidate_label`. When you
-make the confirm gesture (default `grab`), the candidate is locked.
+make the confirm gesture (default `peace` — V-sign), the candidate is locked.
 
 * Want the cursor to be more **sensitive** → decrease `gaze_cone_deg`.
 * Want the cursor to be more **forgiving** → increase `gaze_cone_deg`.
@@ -119,15 +119,22 @@ The order matters. Always do this:
 2. **Aim the gaze cursor** by combining a head turn and a small eye
    movement. Watch the cursor (red line) slide across the boxes; the
    one closest to it goes **green** and `cand=` updates.
-3. **Confirm** with a closed-fist (`grab`) gesture. Hold ~0.6 s. The
-   box turns **cyan**, the log says `LOCKED target "<name>"`, and the
-   orchestrator starts driving the robot.
+3. **Confirm** with a **V-sign / peace gesture** (index + middle finger
+   extended, the rest folded). Hold ~0.6 s. The box turns **cyan**, the
+   log says `LOCKED target "<name>"`, and the orchestrator starts
+   driving the robot.
 
-If you grab while the cursor is *not* over any box, you'll get
-`Got "grab" but no gaze-aligned candidate to lock` — that's the system
+   > Why peace, not a closed fist? The lock gesture has to be visually
+   > very different from the mode-switch gesture (`thumbs_up`) so that
+   > opening / folding your hand on the way into the gesture cannot
+   > accidentally re-toggle the mode. A V-sign requires two extended
+   > fingers — impossible to confuse with a fist or thumbs-up.
+
+If you confirm while the cursor is *not* over any box, you'll get
+`Got "peace" but no gaze-aligned candidate to lock` — that's the system
 correctly refusing to act on an empty cursor.
 
-If you grab while in NAVIGATION mode, you'll get
+If you confirm while in NAVIGATION mode, you'll get
 `Ignoring target "<name>" because mode=NAVIGATION`. Switch first.
 
 ## 5. Tuning
@@ -167,8 +174,9 @@ source install/setup.bash
 | Cursor drifts off-centre when looking straight | Webcam is mounted off-centre relative to your face. Either physically recenter, or accept the offset (your `head_yaw_deg` in the status bar will show it). |
 | Robot doesn't yaw in NAVIGATION mode | Your gaze yaw is inside the dead-zone. Decrease `yaw_left_deg` magnitude (e.g. `-7.0`) and/or `yaw_right_deg` (e.g. `7.0`). |
 | Wrong YOLO box keeps becoming the candidate | Decrease `fusion_node.gaze_cone_deg` to make the cursor more sensitive. |
-| `Got "grab" but no gaze-aligned candidate to lock` | The cursor is over empty space at the moment of grabbing, or YOLO didn't have any detections in the last 2 s. Check the green highlight in the overlay before grabbing. |
-| `Ignoring target "X" because mode=NAVIGATION` | Switch to RETRIEVAL first (thumbs-up) and then grab. |
+| `Got "peace" but no gaze-aligned candidate to lock` | The cursor was over empty space at the moment you made the V-sign, or YOLO had no detections in the last 2 s. Check that a box is highlighted green in the overlay before confirming. |
+| `Ignoring target "X" because mode=NAVIGATION` | Switch to RETRIEVAL first (thumbs-up). |
+| Mode keeps flipping back to NAVIGATION while I try to lock | This was the old behaviour with `grab` (closed fist) as the lock gesture; folding the hand into a fist briefly looked like `thumbs_up` and re-toggled the mode. The default is now `peace` (V-sign) and `mode_manager` has a `mode_switch_cooldown_s` (default 2 s). If you still see flips, increase `mode_switch_cooldown_s` to e.g. 4 s. |
 
 ## 7. Why head + iris instead of pure eye gaze?
 

@@ -76,8 +76,12 @@ class GestureClassifier:
 
     @staticmethod
     def _thumb_extended(points: np.ndarray) -> bool:
-        # Thumb extended ~horizontally; check distance from index MCP.
-        return np.linalg.norm(points[THUMB_TIP] - points[INDEX_MCP]) > 0.08
+        # Thumb extended ~horizontally; require a clear distance from the
+        # index MCP *and* from the wrist (otherwise a closed fist with a
+        # slightly loose thumb gets mis-classified as thumbs_up).
+        d_to_index_mcp = np.linalg.norm(points[THUMB_TIP] - points[INDEX_MCP])
+        d_to_wrist = np.linalg.norm(points[THUMB_TIP] - points[WRIST])
+        return d_to_index_mcp > 0.10 and d_to_wrist > 0.18
 
     @classmethod
     def classify_landmarks(cls, pts: np.ndarray) -> tuple[str, float]:
@@ -102,9 +106,11 @@ class GestureClassifier:
         # Peace / V: index and middle only.
         if index and middle and not ring and not pinky:
             return 'peace', 0.8
-        # Thumbs up: only thumb extended and pointing up.
+        # Thumbs up: only thumb extended and pointing clearly UP, well above
+        # the wrist. We require a noticeable vertical offset to reject the
+        # ambiguous transition out of a fist.
         if thumb and not index and not middle and not ring and not pinky:
-            if pts[THUMB_TIP, 1] < pts[WRIST, 1]:
+            if pts[THUMB_TIP, 1] < pts[WRIST, 1] - 0.10:
                 return 'thumbs_up', 0.85
         # Stop: open palm with thumb folded across counts as fallback open.
         if index and middle and ring and pinky:

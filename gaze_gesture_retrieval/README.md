@@ -117,7 +117,7 @@ In RViz set the initial pose with **2D Pose Estimate**, then:
   stop, `point` to drive backward) while turning your head left/right to
   steer.
 * Say `thumbs_up` to switch to **RETRIEVAL** mode.
-* Look at one of the detected objects, then make a `grab` gesture; the
+* Look at one of the detected objects, then make a `peace` (V-sign) gesture; the
   orchestrator will navigate to it, close the gripper, lift, deliver to
   the user pose, release and return home.
 

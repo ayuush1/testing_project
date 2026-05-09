@@ -156,7 +156,7 @@ You should immediately see logs from each node:
 [gaze_node]: gaze_node started: subscribing to /user_camera/image_raw, ...
 [gesture_node]: gesture_node started: subscribing to /user_camera/image_raw ...
 [yolo_node]: YOLOv8 loaded from yolov8n.pt
-[fusion_node]: fusion_node: cone=25.0 deg, confirm gesture="grab"
+[fusion_node]: fusion_node: cone=25.0 deg, confirm gesture="peace"
 [mode_manager]: mode_manager: start=NAVIGATION, switch_gesture="thumbs_up"
 [teleop_bridge]: teleop_bridge: publishing on /cmd_vel ...
 [arm_controller]: arm_controller ready: traj=/arm_controller/...
@@ -231,7 +231,8 @@ ros2 topic echo /cmd_vel --once
    ```bash
    ros2 topic echo /fusion/candidate_label
    ```
-3. Make a closed-fist (`grab`) gesture. The fusion node locks the
+3. Make a **V-sign / peace gesture** (`peace` — index and middle
+   finger extended, others folded). The fusion node locks the
    target:
 
    ```
@@ -504,8 +505,9 @@ modes:
 2. *Navigation Control Mode*: drive forward/backward/stop with hand
    gestures and steer with head pose.
 3. *Mode switch*: thumbs-up gesture; show `/system/mode` flipping.
-4. *Retrieval Mode*: gaze at a bottle, confirm with `grab`, watch the
-   robot navigate, grasp, lift, deliver, release and return home.
+4. *Retrieval Mode*: gaze at a bottle, confirm with the `peace`
+   (V-sign) gesture, watch the robot navigate, grasp, lift, deliver,
+   release and return home.
 5. *Parameter tweak*: change `fusion_node.gaze_cone_deg` from 25 to 5
    and re-run; show that only objects almost exactly under your gaze
    are now selected.

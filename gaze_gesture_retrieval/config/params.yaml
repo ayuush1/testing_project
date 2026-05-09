@@ -43,13 +43,18 @@ yolo_json_bridge:
 fusion_node:
   ros__parameters:
     gaze_cone_deg: 25.0                           # half-angle around gaze direction
-    confirm_gesture: 'grab'                       # gesture that confirms a target
+    # Lock-on gesture. 'peace' = V-sign (index + middle extended). It is
+    # geometrically very different from 'thumbs_up' (mode switch) and from
+    # 'open_palm'/'fist'/'point' (NAVIGATION drive gestures), which makes
+    # it hard to trigger by accident while folding the hand into a fist.
+    confirm_gesture: 'peace'
     target_lock_timeout_s: 2.0
 
 mode_manager:
   ros__parameters:
     start_mode: 'NAVIGATION'                      # NAVIGATION | RETRIEVAL
     mode_switch_gesture: 'thumbs_up'
+    mode_switch_cooldown_s: 2.0                   # ignore re-toggles within this window
 
 teleop_bridge:
   ros__parameters:
