@@ -47,11 +47,14 @@ def generate_launch_description() -> LaunchDescription:
     user_camera = LaunchConfiguration('user_camera_topic')
     robot_camera = LaunchConfiguration('robot_camera_topic')
     yolo_source = LaunchConfiguration('yolo_source')
+    enable_overlay = LaunchConfiguration('enable_overlay')
 
     is_local = IfCondition(
         PythonExpression(["'", yolo_source, "' == 'local'"]))
     is_remote = IfCondition(
         PythonExpression(["'", yolo_source, "' == 'remote'"]))
+    overlay_on = IfCondition(
+        PythonExpression(["'", enable_overlay, "'.lower() == 'true'"]))
 
     return LaunchDescription([
         DeclareLaunchArgument(
@@ -74,6 +77,13 @@ def generate_launch_description() -> LaunchDescription:
                         "'remote' runs yolo_json_bridge instead and expects "
                         'the Jetson to publish on /yolo/detections_json '
                         '(Assignment 4 style edge inference).',
+        ),
+        DeclareLaunchArgument(
+            'enable_overlay',
+            default_value='true',
+            description='Open an OpenCV HUD window showing the robot camera, '
+                        'YOLO boxes, gaze cursor, candidate and locked '
+                        'target. Strongly recommended for telepresence use.',
         ),
 
         Node(package='gaze_gesture_retrieval', executable='perception_node',
@@ -110,4 +120,8 @@ def generate_launch_description() -> LaunchDescription:
              name='nav_client', output='screen', parameters=[params]),
         Node(package='gaze_gesture_retrieval', executable='retrieval_orchestrator',
              name='retrieval_orchestrator', output='screen', parameters=[params]),
+        Node(package='gaze_gesture_retrieval', executable='gaze_overlay',
+             name='gaze_overlay_node', output='screen',
+             parameters=[params, {'robot_camera_topic': robot_camera}],
+             condition=overlay_on),
     ])

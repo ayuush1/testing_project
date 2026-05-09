@@ -71,3 +71,12 @@ nav_client:
     nav_action: /navigate_to_pose
     map_frame: map
     approach_offset: 0.45                         # stop this far in front of the object
+
+gaze_overlay_node:
+  ros__parameters:
+    robot_camera_topic: /robot_camera/image_raw
+    window_name: gaze overlay
+    gaze_cone_deg: 25.0
+    default_width: 1280                           # used when no image arrives (Arch B)
+    default_height: 720
+    display_rate_hz: 15.0
