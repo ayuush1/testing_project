@@ -9,6 +9,11 @@ gaze_node:
     yaw_left_deg: -12.0                           # < this -> "look left"
     yaw_right_deg: 12.0                           # > this -> "look right"
     use_face_landmarks: true                      # MediaPipe FaceMesh; falls back to OpenCV haar
+    # ----- iris-based fine cursor (Option 1 in the design notes) -----
+    use_iris: true                                # add iris contribution on top of head yaw
+    iris_yaw_range_deg: 18.0                      # how much yaw a fully-eccentric iris adds
+    iris_pitch_range_deg: 12.0
+    iris_deadzone: 0.07                           # ignore tiny saccades (0..1)
 
 gesture_node:
   ros__parameters:

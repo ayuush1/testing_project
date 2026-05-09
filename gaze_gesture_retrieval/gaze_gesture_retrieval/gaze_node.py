@@ -1,10 +1,17 @@
 """Gaze estimation ROS 2 node.
 
 Subscribes to a user-facing camera image stream and publishes:
-    /gaze/yaw_deg          std_msgs/Float32      head yaw in degrees
-    /gaze/pitch_deg        std_msgs/Float32      head pitch in degrees
+    /gaze/yaw_deg          std_msgs/Float32      total yaw (head + iris) in deg
+    /gaze/head_yaw_deg     std_msgs/Float32      head-only yaw in deg
+    /gaze/iris_yaw_deg     std_msgs/Float32      iris contribution in deg
+    /gaze/pitch_deg        std_msgs/Float32      total pitch in deg
     /gaze/direction        geometry_msgs/Vector3 unit gaze direction vector
     /gaze/state            std_msgs/String       'left' | 'right' | 'center' | 'none'
+
+When ``use_iris=true`` the node uses MediaPipe FaceMesh's
+``refine_landmarks`` to also detect iris position and add a fine-cursor
+contribution on top of the head yaw, so the user can do big motions with
+their head and small adjustments with their eyes.
 """
 from __future__ import annotations
 
@@ -33,6 +40,10 @@ class GazeNode(Node):
         self.declare_parameter('yaw_left_deg', -12.0)
         self.declare_parameter('yaw_right_deg', 12.0)
         self.declare_parameter('use_face_landmarks', True)
+        self.declare_parameter('use_iris', True)
+        self.declare_parameter('iris_yaw_range_deg', 18.0)
+        self.declare_parameter('iris_pitch_range_deg', 12.0)
+        self.declare_parameter('iris_deadzone', 0.07)
 
         topic = self.get_parameter('camera_topic').value
         self._alpha = float(self.get_parameter('smoothing_alpha').value)
@@ -40,15 +51,29 @@ class GazeNode(Node):
         self._yaw_right = float(self.get_parameter('yaw_right_deg').value)
         rate = float(self.get_parameter('publish_rate_hz').value)
         use_lm = bool(self.get_parameter('use_face_landmarks').value)
+        use_iris = bool(self.get_parameter('use_iris').value)
+        iris_yaw_range = float(self.get_parameter('iris_yaw_range_deg').value)
+        iris_pitch_range = float(self.get_parameter('iris_pitch_range_deg').value)
+        iris_dz = float(self.get_parameter('iris_deadzone').value)
 
         self._bridge = CvBridge()
-        self._estimator = GazeEstimator(use_face_landmarks=use_lm)
+        self._estimator = GazeEstimator(
+            use_face_landmarks=use_lm,
+            use_iris=use_iris,
+            iris_yaw_range_deg=iris_yaw_range,
+            iris_pitch_range_deg=iris_pitch_range,
+            iris_deadzone=iris_dz,
+        )
         self._latest_frame: np.ndarray | None = None
         self._yaw = 0.0
         self._pitch = 0.0
+        self._head_yaw = 0.0
+        self._iris_yaw = 0.0
 
         self.create_subscription(Image, topic, self._on_image, 10)
         self._pub_yaw = self.create_publisher(Float32, '/gaze/yaw_deg', 10)
+        self._pub_head_yaw = self.create_publisher(Float32, '/gaze/head_yaw_deg', 10)
+        self._pub_iris_yaw = self.create_publisher(Float32, '/gaze/iris_yaw_deg', 10)
         self._pub_pitch = self.create_publisher(Float32, '/gaze/pitch_deg', 10)
         self._pub_dir = self.create_publisher(Vector3, '/gaze/direction', 10)
         self._pub_state = self.create_publisher(String, '/gaze/state', 10)
@@ -56,8 +81,9 @@ class GazeNode(Node):
         self.create_timer(1.0 / max(1.0, rate), self._tick)
 
         self.get_logger().info(
-            f'gaze_node started: subscribing to {topic}, '
-            f'face_landmarks={use_lm}, thresholds=({self._yaw_left}, {self._yaw_right}) deg'
+            f'gaze_node started: topic={topic}, face_landmarks={use_lm}, '
+            f'iris={use_iris} (range yaw={iris_yaw_range}, pitch={iris_pitch_range}, '
+            f'dz={iris_dz}), thresholds=({self._yaw_left}, {self._yaw_right}) deg'
         )
 
     def _on_image(self, msg: Image) -> None:
@@ -76,8 +102,16 @@ class GazeNode(Node):
             return
         self._yaw = self._alpha * result.yaw_deg + (1.0 - self._alpha) * self._yaw
         self._pitch = self._alpha * result.pitch_deg + (1.0 - self._alpha) * self._pitch
+        self._head_yaw = (
+            self._alpha * result.head_yaw_deg + (1.0 - self._alpha) * self._head_yaw
+        )
+        self._iris_yaw = (
+            self._alpha * result.iris_yaw_deg + (1.0 - self._alpha) * self._iris_yaw
+        )
 
         self._pub_yaw.publish(Float32(data=float(self._yaw)))
+        self._pub_head_yaw.publish(Float32(data=float(self._head_yaw)))
+        self._pub_iris_yaw.publish(Float32(data=float(self._iris_yaw)))
         self._pub_pitch.publish(Float32(data=float(self._pitch)))
         v = Vector3()
         v.x, v.y, v.z = result.direction

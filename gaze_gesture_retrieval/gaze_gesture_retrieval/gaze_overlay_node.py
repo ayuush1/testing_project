@@ -60,6 +60,8 @@ class GazeOverlayNode(Node):
         self._frame: np.ndarray | None = None
         self._detections: Detection2DArray | None = None
         self._yaw = 0.0
+        self._head_yaw = 0.0
+        self._iris_yaw = 0.0
         self._candidate = ''
         self._locked = ''
         self._locked_pixel: tuple[float, float] | None = None
@@ -71,6 +73,14 @@ class GazeOverlayNode(Node):
             Detection2DArray, '/perception/detections', self._on_detections, 10
         )
         self.create_subscription(Float32, '/gaze/yaw_deg', self._on_yaw, 10)
+        self.create_subscription(
+            Float32, '/gaze/head_yaw_deg',
+            lambda m: setattr(self, '_head_yaw', float(m.data)), 10,
+        )
+        self.create_subscription(
+            Float32, '/gaze/iris_yaw_deg',
+            lambda m: setattr(self, '_iris_yaw', float(m.data)), 10,
+        )
         self.create_subscription(
             String, '/fusion/candidate_label', self._on_candidate, 10
         )
@@ -164,12 +174,13 @@ class GazeOverlayNode(Node):
         cv2.rectangle(canvas, (0, 0), (w, bar), (0, 0, 0), -1)
         text = (
             f'mode={self._mode}  '
-            f'yaw={self._yaw:+5.1f}  '
-            f'candidate={self._candidate or "-"}  '
-            f'locked={self._locked or "-"}'
+            f'yaw={self._yaw:+5.1f} '
+            f'(head={self._head_yaw:+5.1f}, iris={self._iris_yaw:+5.1f})  '
+            f'cand={self._candidate or "-"}  '
+            f'lock={self._locked or "-"}'
         )
         cv2.putText(canvas, text, (8, 24),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2)
 
         cv2.imshow(self._win, canvas)
         cv2.waitKey(1)

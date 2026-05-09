@@ -30,6 +30,7 @@ gaze_gesture_retrieval/
 ├── setup.py / setup.cfg
 ├── README.md                       <- this file
 ├── docs/RUNNING.md                 <- detailed step-by-step run guide
+├── docs/GAZE_GUIDE.md              <- how the gaze pipeline works + tuning
 ├── config/params.yaml              <- ROS 2 parameters (gaze cone, speeds, poses)
 ├── launch/
 │   ├── perception.launch.py        <- camera + gaze + gesture + YOLO only
