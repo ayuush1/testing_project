@@ -26,12 +26,20 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
+from sensor_msgs.msg import Image
 
 import cv2
+
+try:
+    from cv_bridge import CvBridge
+    _HAS_BRIDGE = True
+except Exception:
+    _HAS_BRIDGE = False
 
 try:
     from ultralytics import YOLO
@@ -67,6 +75,14 @@ class YoloJsonPublisher(Node):
         self.declare_parameter('video_device', '/dev/video0')
         self.declare_parameter('width', 1280)
         self.declare_parameter('height', 720)
+        # Optional companion image stream so the Remote PC overlay has a
+        # picture to draw on top of (Architecture B otherwise only ships
+        # JSON detections, leaving the overlay with a black canvas).
+        self.declare_parameter('publish_image', False)
+        self.declare_parameter('image_topic', '/robot_camera/image_raw')
+        self.declare_parameter('image_width', 480)
+        self.declare_parameter('image_height', 270)
+        self.declare_parameter('image_rate_hz', 5.0)
 
         topic = str(self.get_parameter('topic').value)
         model_name = str(self.get_parameter('model').value)
@@ -116,15 +132,57 @@ class YoloJsonPublisher(Node):
         self._pub = self.create_publisher(String, topic, 10)
         self.create_timer(1.0 / max(1.0, rate), self._tick)
 
+        # Optional image companion stream
+        self._publish_image = bool(self.get_parameter('publish_image').value)
+        self._img_w = int(self.get_parameter('image_width').value)
+        self._img_h = int(self.get_parameter('image_height').value)
+        img_rate = float(self.get_parameter('image_rate_hz').value)
+        img_topic = str(self.get_parameter('image_topic').value)
+        self._img_pub = None
+        self._img_bridge = None
+        self._latest_frame = None
+        self._latest_frame_t = 0.0
+        if self._publish_image:
+            if not _HAS_BRIDGE:
+                self.get_logger().warning(
+                    'publish_image=True but cv_bridge is not installed; '
+                    'companion image stream is disabled.'
+                )
+                self._publish_image = False
+            else:
+                self._img_bridge = CvBridge()
+                self._img_pub = self.create_publisher(Image, img_topic, 5)
+                self.create_timer(1.0 / max(1.0, img_rate), self._image_tick)
+                self.get_logger().info(
+                    f'Companion image stream: {img_topic} at '
+                    f'{self._img_w}x{self._img_h} {img_rate:.1f} Hz'
+                )
+
         self.get_logger().info(
             f'YoloJsonPublisher ready: source={cam_desc}, '
-            f'topic={topic}, conf={self._conf}, rate={rate:.1f} Hz'
+            f'topic={topic}, conf={self._conf}, rate={rate:.1f} Hz, '
+            f'publish_image={self._publish_image}'
         )
+
+    def _image_tick(self) -> None:
+        if self._img_pub is None or self._img_bridge is None:
+            return
+        if self._latest_frame is None or time.monotonic() - self._latest_frame_t > 1.0:
+            return
+        small = cv2.resize(self._latest_frame, (self._img_w, self._img_h))
+        msg = self._img_bridge.cv2_to_imgmsg(small, encoding='bgr8')
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = self._frame_id
+        self._img_pub.publish(msg)
 
     def _tick(self) -> None:
         ok, frame = self._cap.read()
         if not ok or frame is None:
             return
+
+        # Cache the latest frame for the companion image timer.
+        self._latest_frame = frame
+        self._latest_frame_t = time.monotonic()
 
         results = self._model(frame, conf=self._conf, verbose=False)
         if not results:

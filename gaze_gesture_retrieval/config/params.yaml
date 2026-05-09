@@ -62,6 +62,12 @@ teleop_bridge:
     linear_speed: 0.18                            # m/s
     angular_speed: 0.6                            # rad/s
     publish_rate_hz: 20.0
+    forward_gesture: 'open_palm'
+    # 'rock' = horns / index + pinky extended. Visually very different
+    # from 'point' (index only), 'peace' (V-sign, lock gesture), and
+    # 'open_palm' (forward). Falls back to 'point' too if you prefer.
+    backward_gesture: 'rock'
+    stop_gesture:    'fist'
 
 arm_controller:
   ros__parameters:
@@ -86,7 +92,8 @@ gaze_overlay_node:
   ros__parameters:
     robot_camera_topic: /robot_camera/image_raw
     window_name: gaze overlay
-    gaze_cone_deg: 25.0
+    gaze_cone_deg: 25.0                           # MUST match fusion_node.gaze_cone_deg
+    cursor_yaw_range_deg: 40.0                    # cursor saturates here (vis only)
     default_width: 1280                           # used when no image arrives (Arch B)
     default_height: 720
     display_rate_hz: 15.0

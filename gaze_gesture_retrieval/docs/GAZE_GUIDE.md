@@ -1,4 +1,44 @@
-# Gaze Guide
+# Gaze + Gesture Guide
+
+## Gesture cheat sheet
+
+The classifier emits one of: `open_palm`, `fist` (alias `grab`),
+`rock`, `shaka`, `three`, `peace`, `point`, `thumbs_up`, `none`.
+
+| Gesture | Hand shape | Default role |
+| --- | --- | --- |
+| `open_palm` | five fingers extended | NAVIGATION: drive forward |
+| `fist` | all fingers folded | NAVIGATION: stop |
+| `rock` | index + pinky extended ("horns") | NAVIGATION: drive backward |
+| `peace` | index + middle extended ("V") | RETRIEVAL: confirm / lock target |
+| `thumbs_up` | only thumb up, clearly above wrist | toggle NAVIGATION ↔ RETRIEVAL |
+| `point` | only index extended | (legacy backward; available if you remap) |
+| `shaka` / `three` | thumb+pinky / first three fingers | unused, free for your own bindings |
+
+Why these specific gestures? Each must remain unique on the *transition*
+into and out of any other gesture, otherwise mode-switch / lock-on flickers
+(this is exactly what caused the pre-`ad64b0c` "mode keeps flipping back"
+problem). `rock` and `peace` cannot be confused with each other or with
+`thumbs_up` because they require the *pinky* or *middle* finger
+extended — neither of those happens on the way to a thumbs-up.
+
+You can rebind in `config/params.yaml`:
+
+```yaml
+teleop_bridge:
+  forward_gesture:  'open_palm'
+  backward_gesture: 'rock'      # or 'point' or 'three' or 'shaka'
+  stop_gesture:     'fist'
+
+fusion_node:
+  confirm_gesture:  'peace'
+
+mode_manager:
+  mode_switch_gesture:    'thumbs_up'
+  mode_switch_cooldown_s: 2.0
+```
+
+
 
 Everything you need to know to use, tune, and demo the gaze pipeline.
 

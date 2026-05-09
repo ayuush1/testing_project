@@ -45,6 +45,10 @@ class GazeOverlayNode(Node):
         self.declare_parameter('robot_camera_topic', '/robot_camera/image_raw')
         self.declare_parameter('window_name', 'gaze overlay')
         self.declare_parameter('gaze_cone_deg', 25.0)
+        # Visualization-only: the cursor saturates at this yaw. Bigger than
+        # gaze_cone_deg so the cursor still moves when the (head + iris)
+        # yaw exceeds the fusion cone.
+        self.declare_parameter('cursor_yaw_range_deg', 40.0)
         self.declare_parameter('default_width', 1280)
         self.declare_parameter('default_height', 720)
         self.declare_parameter('display_rate_hz', 15.0)
@@ -52,6 +56,7 @@ class GazeOverlayNode(Node):
         cam_topic = str(self.get_parameter('robot_camera_topic').value)
         self._win = str(self.get_parameter('window_name').value)
         self._cone = float(self.get_parameter('gaze_cone_deg').value)
+        self._cursor_range = float(self.get_parameter('cursor_yaw_range_deg').value)
         self._w = int(self.get_parameter('default_width').value)
         self._h = int(self.get_parameter('default_height').value)
         rate = float(self.get_parameter('display_rate_hz').value)
@@ -141,8 +146,16 @@ class GazeOverlayNode(Node):
             )
 
         h, w = canvas.shape[:2]
-        gaze_norm = max(-1.0, min(1.0, self._yaw / max(1e-6, self._cone)))
-        target_x = int(w / 2.0 + gaze_norm * (w / 2.0))
+        cursor_norm = max(-1.0, min(1.0,
+            self._yaw / max(1e-6, self._cursor_range)))
+        target_x = int(w / 2.0 + cursor_norm * (w / 2.0))
+        # Also draw a faint guideline showing the fusion cone limit, so the
+        # user can see where the cursor stops affecting target selection.
+        cone_norm = max(-1.0, min(1.0, self._cone / self._cursor_range))
+        cone_left = int(w / 2.0 - cone_norm * (w / 2.0))
+        cone_right = int(w / 2.0 + cone_norm * (w / 2.0))
+        cv2.line(canvas, (cone_left, 0), (cone_left, h),  (90, 90, 90), 1)
+        cv2.line(canvas, (cone_right, 0), (cone_right, h), (90, 90, 90), 1)
 
         # Draw all detections.
         if self._detections is not None:

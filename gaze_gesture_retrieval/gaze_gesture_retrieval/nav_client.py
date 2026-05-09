@@ -39,6 +39,28 @@ class NavClient(Node):
             )
         self._publish_status('idle')
 
+        self._error_logged = False
+        # Periodic preflight so the user knows up-front whether Nav2 is
+        # actually live, instead of finding out only when a goal is sent.
+        self.create_timer(5.0, self._preflight)
+
+    def _preflight(self) -> None:
+        if self._client is None:
+            return
+        if self._client.wait_for_server(timeout_sec=0.1):
+            if self._error_logged:
+                self.get_logger().info(
+                    'NavigateToPose action server is now available')
+                self._error_logged = False
+        else:
+            if not self._error_logged:
+                self.get_logger().warning(
+                    'NavigateToPose action server is not available. '
+                    'Make sure Nav2 is running:\n'
+                    '    ros2 launch turtlebot3_manipulation_navigation2 '
+                    'navigation2.launch.py map_yaml_file:=$HOME/map.yaml')
+                self._error_logged = True
+
     def _publish_status(self, s: str) -> None:
         self._pub_status.publish(String(data=s))
 
@@ -48,7 +70,9 @@ class NavClient(Node):
                 'Received /nav/goal but Nav2 action client unavailable')
             return
         if not self._client.wait_for_server(timeout_sec=2.0):
-            self.get_logger().error('NavigateToPose server unavailable')
+            self.get_logger().error(
+                'NavigateToPose server unavailable - is Nav2 launched? '
+                'See nav_client preflight log above for instructions.')
             self._publish_status('failed')
             return
         goal = NavigateToPose.Goal()

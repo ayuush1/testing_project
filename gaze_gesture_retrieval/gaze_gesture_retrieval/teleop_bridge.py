@@ -25,14 +25,17 @@ from geometry_msgs.msg import Twist
 from std_msgs.msg import Float32, String
 
 
-GESTURE_TO_LINEAR = {
+DEFAULT_GESTURE_TO_LINEAR = {
     'open_palm': +1.0,
-    'fist': 0.0,
-    'point': -1.0,
-    'peace': 0.0,
-    'thumbs_up': 0.0,
-    'grab': 0.0,
-    'none': 0.0,
+    'fist':       0.0,
+    'rock':      -1.0,    # backward (default; very distinctive)
+    'point':     -1.0,    # legacy backward fallback (still works)
+    'peace':      0.0,
+    'thumbs_up':  0.0,
+    'shaka':      0.0,
+    'three':      0.0,
+    'grab':       0.0,
+    'none':       0.0,
 }
 
 
@@ -44,11 +47,22 @@ class TeleopBridge(Node):
         self.declare_parameter('linear_speed', 0.18)
         self.declare_parameter('angular_speed', 0.6)
         self.declare_parameter('publish_rate_hz', 20.0)
+        self.declare_parameter('forward_gesture', 'open_palm')
+        self.declare_parameter('backward_gesture', 'rock')
+        self.declare_parameter('stop_gesture', 'fist')
 
         self._lin_speed = float(self.get_parameter('linear_speed').value)
         self._ang_speed = float(self.get_parameter('angular_speed').value)
         rate = float(self.get_parameter('publish_rate_hz').value)
         topic = self.get_parameter('cmd_vel_topic').value
+
+        fwd = str(self.get_parameter('forward_gesture').value)
+        back = str(self.get_parameter('backward_gesture').value)
+        stop = str(self.get_parameter('stop_gesture').value)
+        self._gesture_map = dict(DEFAULT_GESTURE_TO_LINEAR)
+        self._gesture_map[fwd] = +1.0
+        self._gesture_map[back] = -1.0
+        self._gesture_map[stop] = 0.0
 
         self._pub = self.create_publisher(Twist, topic, 10)
         self.create_subscription(String, '/gesture/label', self._on_gesture, 10)
@@ -87,7 +101,7 @@ class TeleopBridge(Node):
             self._pub.publish(twist)
             return
 
-        lin_dir = GESTURE_TO_LINEAR.get(self._gesture, 0.0)
+        lin_dir = self._gesture_map.get(self._gesture, 0.0)
         twist.linear.x = lin_dir * self._lin_speed
         if self._gaze == 'left':
             twist.angular.z = +self._ang_speed

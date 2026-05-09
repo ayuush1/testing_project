@@ -1,7 +1,20 @@
 """Rule-based gesture classifier built on top of MediaPipe Hands.
 
 Recognised gestures (returned as strings):
-    open_palm, fist, point, thumbs_up, peace, grab, none
+    open_palm    five fingers extended
+    fist / grab  no fingers extended (alias)
+    point        only index extended
+    peace        index + middle extended (V-sign)
+    rock         index + pinky extended (horns / "rock and roll")
+    shaka        thumb + pinky extended ("hang loose")
+    three        index + middle + ring extended
+    thumbs_up    only thumb extended and clearly above the wrist
+    none         anything else
+
+Gestures are intentionally chosen to be visually distinct so that the
+mode-switch (``thumbs_up``), the lock-on confirm (``peace`` by default),
+and the drive gestures (``open_palm`` / ``fist`` / ``rock``) cannot be
+confused on the way in or out of one another.
 
 The implementation is intentionally rule-based so that it works without any
 additional model file. A learned classifier can be substituted by replacing
@@ -100,19 +113,29 @@ class GestureClassifier:
         # Fist / grab: nothing extended.
         if n_ext == 0:
             return 'grab', 0.9
-        # Pointing: only index extended.
-        if index and not middle and not ring and not pinky:
-            return 'point', 0.85
+        # Rock / horns: index + pinky only (very distinctive vs all other
+        # configurations). Used as the default backward-drive gesture.
+        if index and pinky and not middle and not ring:
+            return 'rock', 0.9
+        # Shaka / "hang loose": thumb + pinky only.
+        if thumb and pinky and not index and not middle and not ring:
+            return 'shaka', 0.85
+        # Three: index + middle + ring (no pinky).
+        if index and middle and ring and not pinky:
+            return 'three', 0.85
         # Peace / V: index and middle only.
         if index and middle and not ring and not pinky:
-            return 'peace', 0.8
+            return 'peace', 0.85
+        # Pointing: only index extended.
+        if index and not middle and not ring and not pinky:
+            return 'point', 0.8
         # Thumbs up: only thumb extended and pointing clearly UP, well above
         # the wrist. We require a noticeable vertical offset to reject the
         # ambiguous transition out of a fist.
         if thumb and not index and not middle and not ring and not pinky:
             if pts[THUMB_TIP, 1] < pts[WRIST, 1] - 0.10:
                 return 'thumbs_up', 0.85
-        # Stop: open palm with thumb folded across counts as fallback open.
+        # Fallback: four fingers up but thumb tucked is treated as open palm.
         if index and middle and ring and pinky:
             return 'open_palm', 0.7
         return 'none', 0.3

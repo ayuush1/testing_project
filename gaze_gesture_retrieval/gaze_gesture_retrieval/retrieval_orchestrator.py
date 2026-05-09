@@ -70,6 +70,13 @@ class RetrievalOrchestrator(Node):
         self._target_label: Optional[str] = None
         self._robot_xy: Tuple[float, float] = (0.0, 0.0)
         self._t_state_entered = time.monotonic()
+        # Set of action keywords ("home", "open", "extend", ...) already
+        # published for the *current* state so we don't spam the arm
+        # controller with duplicates 5 times a second.
+        self._actions_sent: set[str] = set()
+        # Whether the navigation goal has already been published for the
+        # current APPROACH or DELIVER state.
+        self._nav_sent = False
 
         self.create_subscription(String, '/system/mode', self._on_mode, 10)
         self.create_subscription(String, '/fusion/locked_target', self._on_target, 10)
@@ -105,6 +112,15 @@ class RetrievalOrchestrator(Node):
         self.get_logger().info(f'state {self._state.name} -> {new.name}')
         self._state = new
         self._t_state_entered = time.monotonic()
+        self._actions_sent.clear()
+        self._nav_sent = False
+
+    def _send_arm_once(self, command: str) -> None:
+        """Publish an /arm/command keyword at most once per state entry."""
+        if command in self._actions_sent:
+            return
+        self._actions_sent.add(command)
+        self._pub_arm.publish(String(data=command))
 
     def _send_pose(self, x: float, y: float, yaw: float) -> None:
         ps = PoseStamped()
@@ -161,38 +177,41 @@ class RetrievalOrchestrator(Node):
             if self._target_label is None:
                 self._enter(State.IDLE)
                 return
-            obj_xy = self._objects[self._target_label]
-            x, y, yaw = project_pose_in_front(obj_xy, self._robot_xy, self._offset)
-            self._send_pose(x, y, yaw)
-            # Fall through; we wait on /nav/status to advance.
+            if not self._nav_sent:
+                obj_xy = self._objects[self._target_label]
+                x, y, yaw = project_pose_in_front(obj_xy, self._robot_xy, self._offset)
+                self._send_pose(x, y, yaw)
+                self._nav_sent = True
             return
         if s == State.PRE_GRASP:
-            self._pub_arm.publish(String(data='open'))
-            self._pub_arm.publish(String(data='extend'))
+            self._send_arm_once('open')
+            self._send_arm_once('extend')
             if elapsed > 3.0:
                 self._enter(State.GRASP)
             return
         if s == State.GRASP:
-            self._pub_arm.publish(String(data='close'))
+            self._send_arm_once('close')
             if elapsed > 2.0:
                 self._enter(State.LIFT)
             return
         if s == State.LIFT:
-            self._pub_arm.publish(String(data='carry'))
+            self._send_arm_once('carry')
             if elapsed > 3.0:
                 self._enter(State.DELIVER)
             return
         if s == State.DELIVER:
-            self._send_pose(self._user[0], self._user[1], self._user[2])
+            if not self._nav_sent:
+                self._send_pose(self._user[0], self._user[1], self._user[2])
+                self._nav_sent = True
             return
         if s == State.RELEASE:
-            self._pub_arm.publish(String(data='extend'))
-            self._pub_arm.publish(String(data='open'))
+            self._send_arm_once('extend')
+            self._send_arm_once('open')
             if elapsed > 3.0:
                 self._enter(State.HOME)
             return
         if s == State.HOME:
-            self._pub_arm.publish(String(data='home'))
+            self._send_arm_once('home')
             if elapsed > 3.0:
                 self._enter(State.DONE)
             return
