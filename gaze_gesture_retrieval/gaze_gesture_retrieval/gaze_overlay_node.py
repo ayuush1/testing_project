@@ -71,6 +71,7 @@ class GazeOverlayNode(Node):
         self._locked = ''
         self._locked_pixel: tuple[float, float] | None = None
         self._mode = 'NAVIGATION'
+        self._retrieval_state = 'IDLE'
         self._t_locked = 0.0
 
         self.create_subscription(Image, cam_topic, self._on_image, 5)
@@ -96,6 +97,10 @@ class GazeOverlayNode(Node):
             Point, '/fusion/locked_pixel', self._on_locked_pixel, 10
         )
         self.create_subscription(String, '/system/mode', self._on_mode, 10)
+        self.create_subscription(
+            String, '/retrieval/state',
+            lambda m: setattr(self, '_retrieval_state', m.data), 10,
+        )
 
         self.create_timer(1.0 / max(1.0, rate), self._tick)
         self.get_logger().info(
@@ -186,9 +191,9 @@ class GazeOverlayNode(Node):
         bar = 36
         cv2.rectangle(canvas, (0, 0), (w, bar), (0, 0, 0), -1)
         text = (
-            f'mode={self._mode}  '
-            f'yaw={self._yaw:+5.1f} '
-            f'(head={self._head_yaw:+5.1f}, iris={self._iris_yaw:+5.1f})  '
+            f'mode={self._mode}  state={self._retrieval_state}  '
+            f'yaw={self._yaw:+5.1f}'
+            f' (h{self._head_yaw:+4.1f},i{self._iris_yaw:+4.1f})  '
             f'cand={self._candidate or "-"}  '
             f'lock={self._locked or "-"}'
         )

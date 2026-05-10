@@ -75,18 +75,51 @@ arm_controller:
     gripper_action: /gripper_controller/gripper_cmd
     move_time_s: 2.5
     # Predefined joint poses for OpenMANIPULATOR-X (joint1..joint4) in radians
-    pose_home:    [0.0,    -1.0,  0.7,   0.7]
-    pose_extend:  [0.0,    -0.3,  0.2,   0.6]
-    pose_carry:   [0.0,    -1.2,  0.2,   1.0]
-    pose_wave:    [0.0,    -0.2, -1.0,   1.2]
-    gripper_open:  0.019
-    gripper_close: -0.01
+    # The default values below were verified on the physical robot.
+    pose_home:       [0.0, 0.0, 0.0, 0.0]                       # neutral / safe
+    pose_extend:     [0.0, 1.080, -0.240, -0.900]               # forward extend (key '0' in legacy code)
+    pose_carry:      [0.0, -1.2,  0.2,    1.0]                  # tucked carrying
+    pose_wave:       [0.0, -1.01229, 0.26893, 0.506145]         # wave (key '8')
+    pose_final_grab: [0.0015, 0.9590, -0.6167, 0.2730]          # tested grab pose
+    pose_place:      [0.0, 0.75, -0.50, 0.20]                   # release/place pose
+    gripper_open:   0.018
+    gripper_close: -0.003
 
 nav_client:
   ros__parameters:
     nav_action: /navigate_to_pose
     map_frame: map
     approach_offset: 0.45                         # stop this far in front of the object
+
+# The retrieval orchestrator now defaults to a visual-servo loop (no
+# Nav2 / no static map needed). Set approach_mode: 'nav2' to fall back
+# to the original behaviour with a calibrated map + object_table.
+retrieval_orchestrator:
+  ros__parameters:
+    approach_mode: 'visual_servo'                 # 'visual_servo' | 'nav2'
+    do_return_after_pick: true
+    # Visual-servo gains / thresholds (units: pixels)
+    image_width: 1280.0
+    center_tolerance_px: 70.0
+    target_bbox_width_px: 220.0
+    bbox_width_tolerance_px: 20.0
+    detection_timeout_s: 0.7
+    search_turn_speed: 0.32
+    max_turn_speed: 0.70
+    max_forward_speed: 0.18
+    kp_turn: 0.0025
+    kp_forward: 0.0025
+    return_turn_time_s: 4.5
+    return_drive_time_s: 2.5
+    return_drive_speed: -0.15
+    # Used only in nav2 mode (legacy)
+    approach_offset: 0.45
+    map_frame: map
+    object_table:
+      - 'bottle:1.5:0.0'
+      - 'cup:0.8:1.0'
+      - 'teddy bear:1.2:-0.8'
+    user_pose: [0.0, 0.0, 0.0]
 
 gaze_overlay_node:
   ros__parameters:

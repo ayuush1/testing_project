@@ -1,16 +1,19 @@
 """Arm + gripper controller for the OpenMANIPULATOR-X.
 
 Exposes a string-based command topic ``/arm/command`` that accepts the
-following commands:
+following built-in commands:
 
-    home        -> move to the home pose
-    extend      -> extend forward (pre-grasp)
+    home        -> upright/safe pose          (default [0, 0, 0, 0])
+    extend      -> pre-grasp pose
     carry       -> tucked carrying pose
     wave        -> friendly wave pose
+    final_grab  -> closed-gripper grab pose verified on the physical robot
+    place       -> place / release pose
     open        -> open the gripper
     close       -> close the gripper
 
-The poses are loaded from the parameter server (see ``config/params.yaml``).
+You can also publish the literal name of any ``pose_<name>`` parameter
+(e.g. ``demo1``) to add custom poses without editing the code.
 
 Internally the node uses two ROS 2 actions:
     /arm_controller/follow_joint_trajectory   (control_msgs/FollowJointTrajectory)
@@ -39,19 +42,25 @@ class ArmController(Node):
         )
         self.declare_parameter('gripper_action', '/gripper_controller/gripper_cmd')
         self.declare_parameter('move_time_s', 2.5)
-        self.declare_parameter('pose_home',   [0.0, -1.0, 0.7, 0.7])
-        self.declare_parameter('pose_extend', [0.0, -0.3, 0.2, 0.6])
-        self.declare_parameter('pose_carry',  [0.0, -1.2, 0.2, 1.0])
-        self.declare_parameter('pose_wave',   [0.0, -0.2, -1.0, 1.2])
-        self.declare_parameter('gripper_open', 0.019)
-        self.declare_parameter('gripper_close', -0.01)
+        # Default poses come from the values verified on our physical
+        # OpenMANIPULATOR-X. Override in config/params.yaml.
+        self.declare_parameter('pose_home',       [0.0, 0.0, 0.0, 0.0])
+        self.declare_parameter('pose_extend',     [0.0, 1.080, -0.240, -0.900])
+        self.declare_parameter('pose_carry',      [0.0, -1.2, 0.2, 1.0])
+        self.declare_parameter('pose_wave',       [0.0, -1.01229, 0.26893, 0.506145])
+        self.declare_parameter('pose_final_grab', [0.0015, 0.9590, -0.6167, 0.2730])
+        self.declare_parameter('pose_place',      [0.0, 0.75, -0.50, 0.20])
+        self.declare_parameter('gripper_open',  0.018)
+        self.declare_parameter('gripper_close', -0.003)
 
         self._move_t = float(self.get_parameter('move_time_s').value)
         self._poses = {
-            'home':   list(self.get_parameter('pose_home').value),
-            'extend': list(self.get_parameter('pose_extend').value),
-            'carry':  list(self.get_parameter('pose_carry').value),
-            'wave':   list(self.get_parameter('pose_wave').value),
+            'home':       list(self.get_parameter('pose_home').value),
+            'extend':     list(self.get_parameter('pose_extend').value),
+            'carry':      list(self.get_parameter('pose_carry').value),
+            'wave':       list(self.get_parameter('pose_wave').value),
+            'final_grab': list(self.get_parameter('pose_final_grab').value),
+            'place':      list(self.get_parameter('pose_place').value),
         }
         self._g_open = float(self.get_parameter('gripper_open').value)
         self._g_close = float(self.get_parameter('gripper_close').value)

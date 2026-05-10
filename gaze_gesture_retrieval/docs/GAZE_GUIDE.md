@@ -1,5 +1,84 @@
 # Gaze + Gesture Guide
 
+## What happens after the lock — visual-servo retrieval
+
+Once you confirm a target with `peace`, `retrieval_orchestrator` runs a
+visual-servo state machine that does **not** need Nav2 or a calibrated
+map:
+
+```
+  IDLE
+   │  (locked target arrives)
+   ▼
+  ALIGN ───spin─────► ALIGN              keep the bbox centred ±70 px
+   │
+   ▼
+  APPROACH ──drive──► APPROACH           drive forward with proportional
+   │                                     yaw correction; stop when bbox
+   │                                     width >= target_bbox_width_px
+   ▼
+  PICK     ── arm sequence ──            home -> open -> final_grab ->
+   │                                     close -> home
+   ▼
+  RETURN_TURN  ──spin~4.5s──             rotate ~180°
+   │
+   ▼
+  RETURN_DRIVE ──reverse~2.5s──          drive back to the user
+   │
+   ▼
+  PLACE    ── arm sequence ──            place -> open -> home
+   │
+   ▼
+  DONE
+```
+
+Lost the target mid-approach? If the last seen bbox was already big
+enough, the orchestrator commits to `PICK`. Otherwise it falls back to
+`SEARCH` (spin in place) and retries `ALIGN` when YOLO sees it again.
+
+You can watch the state in real time:
+
+```bash
+ros2 topic echo /retrieval/state
+```
+
+…or in the **gaze overlay** status bar — it now reads
+`mode=...  state=APPROACH  yaw=...`.
+
+### Tuning the visual servo
+
+Defaults in `config/params.yaml -> retrieval_orchestrator`:
+
+| Param | Default | Effect |
+| --- | --- | --- |
+| `image_width` | `1280` | must match the Jetson camera width (CSI default 1280). |
+| `center_tolerance_px` | `70` | how close to centred is "centred enough". |
+| `target_bbox_width_px` | `220` | bbox width at which we stop approaching and pick. Bigger bbox = closer the robot stops. |
+| `bbox_width_tolerance_px` | `20` | hysteresis on the close-enough check. |
+| `kp_turn` / `kp_forward` | `0.0025` | proportional gains. Increase for snappier servo. |
+| `max_turn_speed` | `0.70 rad/s` | safety cap on yaw rate. |
+| `max_forward_speed` | `0.18 m/s` | safety cap on linear velocity. |
+| `return_turn_time_s` | `4.5` | seconds spinning to "turn around" after pick. Set to `0` to skip. |
+| `return_drive_time_s` | `2.5` | seconds reversing to return to the user. |
+| `do_return_after_pick` | `true` | set false to skip RETURN_TURN/DRIVE/PLACE entirely. |
+
+### Switching back to Nav2
+
+```yaml
+retrieval_orchestrator:
+  ros__parameters:
+    approach_mode: 'nav2'
+    object_table:
+      - 'bottle:1.20:0.40'
+      - 'cup:0.80:1.00'
+    user_pose: [0.0, 0.0, 0.0]
+```
+
+Then launch Nav2 + a map and the orchestrator will use the original
+`/navigate_to_pose` path instead of the visual servo.
+
+
+
 ## Gesture cheat sheet
 
 The classifier emits one of: `open_palm`, `fist` (alias `grab`),

@@ -251,10 +251,12 @@ ros2 topic echo /cmd_vel --once
    ...
    [retrieval_orchestrator]: state HOME -> DONE
    ```
-5. The world coordinates of each object live in
-   `config/params.yaml -> retrieval_orchestrator.object_table`. Update
-   them to match the layout in your Gazebo world (the same x/y you would
-   use as a Nav2 goal in RViz).
+5. **No object coordinates needed by default.** As of commit `7525b87+`,
+   the orchestrator runs a visual-servo state machine
+   (`approach_mode: visual_servo`) that uses the live YOLO bbox to align
+   and approach. To use the legacy Nav2 path with a static
+   `object_table`, set `retrieval_orchestrator.approach_mode: nav2` in
+   `config/params.yaml` and provide world `(x, y)` for each object.
 
 ### 5.8 Useful diagnostic commands
 
@@ -487,7 +489,8 @@ HOST_UID=$(id -u) USER_HOME=$HOME docker compose up -d --build
 | `ros2: error: unrecognized arguments: --ros-args --remap ...` when running `ros2 launch` | `--ros-args --remap` is only valid for `ros2 run`, not `ros2 launch`. Use the `robot_camera_topic:=/camera/image_raw` launch argument, or run a `topic_tools relay`. |
 | `ros2 run topic_tools relay ...` says *"package not found"* | `topic_tools` isn't installed in the course image by default. `apt-get install -y ros-humble-topic-tools`. The current `scripts/install_deps.sh` already does this; if your container was created before that change, re-run it. The `cwd` you run `ros2 run` from is irrelevant — only sourcing matters. |
 | `RTPS_TRANSPORT_SHM Error: Failed init_port fastrtps_port...` and topics no longer appear | A previous ROS process died hard (Ctrl-C during a hang) and left lock files in `/dev/shm`. Clean them up: `rm -f /dev/shm/fastrtps_* /dev/shm/sem.fastrtps_*` and try again. If it keeps recurring, switch to Cyclone DDS: `export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp` (set the same on the Jetson). |
-| `nav_client: NavigateToPose server unavailable` | Nav2 isn't running. The retrieval state machine needs it. Launch it in another shell: `ros2 launch turtlebot3_manipulation_navigation2 navigation2.launch.py map_yaml_file:=$HOME/map.yaml`. The `nav_client` node now logs this preflight warning every 5 s until Nav2 comes up. |
+| `nav_client: NavigateToPose server unavailable` | Only relevant if `retrieval_orchestrator.approach_mode: nav2`. The default `visual_servo` mode does not need Nav2. To launch Nav2: `ros2 launch turtlebot3_manipulation_navigation2 navigation2.launch.py map_yaml_file:=$HOME/map.yaml`. |
+| `Nav2 failed in APPROACH; aborting` / `NavigateToPose goal rejected` | Same cause: only an issue in `nav2` approach_mode. Either fix the goal coords (Nav2 rejects goals on obstacles) or switch to `approach_mode: visual_servo`. |
 | `arm_controller` repeats the same goal many times per second | Pre-`ad64b0c` orchestrator bug; the state machine now publishes each arm command exactly once per state entry. `git pull` and rebuild. |
 | MediaPipe import error | `pip3 install mediapipe==0.10.14`. Newer 0.10.x versions also work; pin the version that matches your CUDA/CPU. |
 | YOLO logs "Failed to load yolov8n.pt" | First launch downloads the weights; ensure the container has internet. |
